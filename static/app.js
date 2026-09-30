@@ -1,8 +1,10 @@
 const button = document.getElementById("generate");
+const result = document.getElementById("result");
+const copyButton = document.getElementById("copy");
 
 button.addEventListener("click", async () => {
     button.disabled = true;
-    button.textContent = "Generating...";
+    result.textContent = "Generating...";
 
     try {
         const response = await fetch("/api/generate", {
@@ -11,11 +13,26 @@ button.addEventListener("click", async () => {
 
         const data = await response.json();
 
-        console.log(data);
+        if (!data.success) {
+            result.textContent = data.error || "Generate failed";
+            return;
+        }
+
+        result.textContent = data.result;
+        copyButton.style.display = "block";
+
     } catch (error) {
-        console.error(error);
+        result.textContent = "Error: " + error.message;
     } finally {
         button.disabled = false;
-        button.textContent = "Generate";
     }
+});
+
+copyButton.addEventListener("click", async () => {
+    await navigator.clipboard.writeText(result.textContent);
+
+    copyButton.textContent = "Copied!";
+    setTimeout(() => {
+        copyButton.textContent = "Copy";
+    }, 1000);
 });
