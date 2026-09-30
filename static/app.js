@@ -8,13 +8,22 @@ button.addEventListener("click", async () => {
     copyButton.style.display = "none";
 
     try {
-        const response = await fetch("/api/generate", {
+        const response = await fetch("/api/control", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                prompt: "Generate"
+                position: {
+                    x: 100,
+                    y: 5,
+                    z: 200
+                },
+                target: {
+                    x: 300,
+                    y: 5,
+                    z: 500
+                }
             })
         });
 
@@ -25,27 +34,25 @@ button.addEventListener("click", async () => {
         try {
             data = JSON.parse(text);
         } catch {
-            result.textContent = "Server returned invalid JSON:\n\n" + text;
-            return;
-        }
-
-        if (!response.ok) {
-            result.textContent = data.error || "Generate failed";
-            return;
-        }
-
-        if (data.result && typeof data.result === "object") {
             result.textContent =
-                data.result.text ||
-                JSON.stringify(data.result, null, 2);
-        } else {
-            result.textContent = data.result || "ไม่มีผลลัพธ์";
+                "Server returned invalid JSON:\n\n" + text;
+            return;
         }
+
+        if (!response.ok || !data.success) {
+            result.textContent =
+                data.error || "Generate failed";
+            return;
+        }
+
+        result.textContent =
+            JSON.stringify(data.result, null, 2);
 
         copyButton.style.display = "block";
 
     } catch (error) {
-        result.textContent = "Request error:\n\n" + error.message;
+        result.textContent =
+            "Request error:\n\n" + error.message;
     } finally {
         button.disabled = false;
     }
@@ -53,13 +60,18 @@ button.addEventListener("click", async () => {
 
 copyButton.addEventListener("click", async () => {
     try {
-        await navigator.clipboard.writeText(result.textContent);
+        await navigator.clipboard.writeText(
+            result.textContent
+        );
+
         copyButton.textContent = "Copied!";
 
         setTimeout(() => {
             copyButton.textContent = "Copy";
         }, 1000);
+
     } catch (error) {
-        result.textContent += "\n\nCopy error: " + error.message;
+        result.textContent +=
+            "\n\nCopy error: " + error.message;
     }
 });
