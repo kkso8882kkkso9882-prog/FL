@@ -1,18 +1,19 @@
 from flask import Flask, request, jsonify, render_template
 import os
 import time
+import random
 
 app = Flask(__name__)
 
 memory = []
+MAX_MEMORY = 100
 
-MAX_MEMORY = 50
 
-
-def remember(role, content):
+def remember(state, action, reward=None):
     memory.append({
-        "role": role,
-        "content": content,
+        "state": state,
+        "action": action,
+        "reward": reward,
         "time": int(time.time())
     })
 
@@ -20,25 +21,53 @@ def remember(role, content):
         del memory[:-MAX_MEMORY]
 
 
-def generate_ai(prompt):
+def choose_action(state):
     """
-    จุดนี้จะเป็นสมอง AI ของเรา
-    ตอนนี้ยังไม่ผูกกับโมเดลใด เพื่อไม่ล็อกระบบผิดตัว
+    Game AI Agent
+    รับ state ของเกม แล้วเลือก action
     """
 
-    remember("user", prompt)
+    if not isinstance(state, dict):
+        state = {}
 
-    # TODO:
-    # เชื่อมโมเดล AI ตรงนี้
+    # ข้อมูลพื้นฐานจากเกม
+    health = float(state.get("health", 100))
+    enemy_visible = bool(state.get("enemy_visible", False))
+    enemy_distance = float(state.get("enemy_distance", 999))
+    can_attack = bool(state.get("can_attack", False))
+    can_jump = bool(state.get("can_jump", True))
 
-    response = {
-        "text": "AI backend พร้อมแล้ว แต่ยังไม่ได้เชื่อมโมเดล AI",
-        "status": "model_not_connected"
-    }
+    # หลักการตัดสินใจเบื้องต้น
+    if health <= 20:
+        action = {
+            "type": "retreat"
+        }
 
-    remember("assistant", response["text"])
+    elif enemy_visible and can_attack and enemy_distance <= 10:
+        action = {
+            "type": "attack"
+        }
 
-    return response
+    elif enemy_visible and enemy_distance <= 30:
+        action = {
+            "type": "move",
+            "direction": "backward"
+        }
+
+    elif can_jump and random.random() < 0.15:
+        action = {
+            "type": "jump"
+        }
+
+    else:
+        action = {
+            "type": "move",
+            "direction": "forward"
+        }
+
+    remember(state, action)
+
+    return action
 
 
 @app.route("/")
@@ -46,35 +75,34 @@ def home():
     return render_template("index.html")
 
 
-@app.route("/api/generate", methods=["POST"])
+@app.route("/api/generate", methods=["GET", "POST"])
 def api_generate():
+
+    if request.method == "GET":
+        return jsonify({
+            "success": True,
+            "status": "online",
+            "agent": "Game Agent",
+            "endpoint": "/api/generate",
+            "method": "POST"
+        })
+
     data = request.get_json(silent=True)
 
-    if not data:
+    if not isinstance(data, dict):
         return jsonify({
+            "success": False,
             "error": "JSON body required"
         }), 400
 
-    prompt = data.get("prompt")
-
-    if not prompt or not isinstance(prompt, str):
-        return jsonify({
-            "error": "prompt is required"
-        }), 400
-
-    prompt = prompt.strip()
-
-    if not prompt:
-        return jsonify({
-            "error": "prompt is empty"
-        }), 400
+    state = data.get("state", data)
 
     try:
-        result = generate_ai(prompt)
+        action = choose_action(state)
 
         return jsonify({
             "success": True,
-            "result": result
+            "action": action
         })
 
     except Exception as e:
@@ -82,6 +110,27 @@ def api_generate():
             "success": False,
             "error": str(e)
         }), 500
+
+
+@app.route("/api/reward", methods=["POST"])
+def api_reward():
+
+    data = request.get_json(silent=True) or {}
+
+    reward = data.get("reward", 0)
+
+    try:
+        reward = float(reward)
+    except (TypeError, ValueError):
+        reward = 0
+
+    if memory:
+        memory[-1]["reward"] = reward
+
+    return jsonify({
+        "success": True,
+        "reward": reward
+    })
 
 
 @app.route("/api/memory", methods=["GET"])
@@ -95,7 +144,8 @@ def api_memory():
 def health():
     return jsonify({
         "status": "online",
-        "service": "AI Agent API"
+        "agent": "Game Agent",
+        "model": "app.py"
     })
 
 
